@@ -29,6 +29,8 @@ jobs:
       - name: Upload to Deno Deploy
         uses: denoland/deployctl@v1
         with:
-          project: "fresh-webrtc-ds"
+          project: "capo-greco-grid-bridge-75"
           entrypoint: "main.ts"
           root: "."
+          
+          
