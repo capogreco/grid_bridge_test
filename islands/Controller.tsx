@@ -619,7 +619,9 @@ function SynthControls(
   );
 }
 
-export default function Controller({ user, clientId, gridPort = 8001 }: ControllerProps) {
+export default function Controller(
+  { user, clientId, gridPort = 8001 }: ControllerProps,
+) {
   // Use the server-provided client ID
   const id = useSignal(clientId);
   // Changed from array to Map for O(1) lookups by client ID
@@ -2306,19 +2308,275 @@ export default function Controller({ user, clientId, gridPort = 8001 }: Controll
     };
   }, []);
 
-  // Track last grid key event for display
-  const gridLastKeyEvent = useSignal<{ x: number; y: number; s: number } | null>(null);
+  // Track grid-related state
+  const gridLastKeyEvent = useSignal<
+    { x: number; y: number; s: number } | null
+  >(null);
+  const gridController = useSignal<any>(null);
 
-  // Handle grid key events
+  // Handle grid setup to store controller reference
+  const handleGridSetup = (controller: any) => {
+    console.log("Grid controller initialized", controller);
+    gridController.value = controller;
+  };
+
+  // Handle grid key events and map to synthesis parameters
   const handleGridKey = (x: number, y: number, s: number) => {
     console.log(`Grid key press: x=${x}, y=${y}, s=${s}`);
     gridLastKeyEvent.value = { x, y, s };
-    // Later this will be connected to synthesis parameters
+
+    // Only process key presses (s=1), not releases (s=0)
+    if (s === 0) return;
+
+    // Get all connected clients to control with the grid
+    const connectedClients = Array.from(connections.value.entries())
+      .filter(([_, conn]) => conn.connected)
+      .map(([id, _]) => id);
+
+    if (connectedClients.length === 0) {
+      console.log("No connected clients to control with grid");
+      return;
+    }
+
+    // Check if grid controller is available to provide visual feedback
+    const hasGridController = gridController.value !== null;
+
+    // Map grid rows to different synthesis parameters:
+    // Row 0: Note on/off with different frequencies (one column = one note)
+    // Row 1: Waveform selection (sine, square, sawtooth, triangle)
+    // Row 2: Volume control (columns = 0% to 100%)
+    // Row 3: Filter cutoff (left = low, right = high)
+    // Row 4: Filter resonance (left = low, right = high)
+
+    // Visual Feedback - light up the row to show it's selected
+    const showRowFeedback = async (rowNumber: number) => {
+      if (hasGridController) {
+        // First clear grid
+        await gridController.value.setAll(0);
+
+        // Then light up the row
+        await gridController.value.highlightRow(rowNumber, 5);
+
+        // Finally highlight the selected parameter
+        await gridController.value.setLed(x, rowNumber, 15);
+      }
+    };
+
+    // Control every connected client
+    connectedClients.forEach((clientId) => {
+      const client = clients.value.get(clientId);
+      if (!client || !client.synthParams) return;
+
+      switch (y) {
+        case 0: // Row 0: Note on/off with different frequencies
+          // Map x position to note frequency
+          const noteNames = [
+            "C3",
+            "D3",
+            "E3",
+            "F3",
+            "G3",
+            "A3",
+            "B3",
+            "C4",
+            "D4",
+            "E4",
+            "F4",
+            "G4",
+            "A4",
+            "B4",
+            "C5",
+            "D5",
+          ];
+          const note = noteNames[x];
+
+          // Visual feedback
+          showRowFeedback(0);
+
+          // Create an active note pattern where only the current note is lit
+          if (hasGridController) {
+            const notePattern = Array(16).fill(0);
+            notePattern[x] = 15; // Full brightness for selected note
+            gridController.value.drawRowPattern(0, notePattern);
+          }
+
+          // Turn on the note
+          updateSynthParam(clientId, "note_on", noteToFrequency(note));
+          console.log(`Grid: Set client ${clientId} note to ${note}`);
+          break;
+
+        case 1: // Row 1: Waveform selection
+          // Map specific x positions to waveforms and column positions
+          let waveform = "sine";
+          let waveformColumn = 0;
+
+          if (x >= 0 && x < 4) {
+            waveform = "sine";
+            waveformColumn = 2;
+          } else if (x >= 4 && x < 8) {
+            waveform = "square";
+            waveformColumn = 6;
+          } else if (x >= 8 && x < 12) {
+            waveform = "sawtooth";
+            waveformColumn = 10;
+          } else if (x >= 12 && x < 16) {
+            waveform = "triangle";
+            waveformColumn = 14;
+          }
+
+          // Visual feedback
+          showRowFeedback(1);
+
+          // Show waveform sections
+          if (hasGridController) {
+            const waveformPattern = [
+              0,
+              0,
+              8,
+              8,
+              0,
+              0,
+              8,
+              8,
+              0,
+              0,
+              8,
+              8,
+              0,
+              0,
+              8,
+              8,
+            ];
+            waveformPattern[waveformColumn] = 15; // Highlight selected waveform
+            gridController.value.drawRowPattern(1, waveformPattern);
+          }
+
+          updateSynthParam(clientId, "waveform", waveform);
+          console.log(`Grid: Set client ${clientId} waveform to ${waveform}`);
+          break;
+
+        case 2: // Row 2: Volume (0-100%)
+          // Map x position (0-15) to volume (0-1)
+          const volume = x / 15;
+
+          // Visual feedback - show volume level as a bar graph
+          showRowFeedback(2);
+
+          if (hasGridController) {
+            const volumePattern = Array(16).fill(0);
+            // Create volume bar from 0 to selected position
+            for (let i = 0; i <= x; i++) {
+              volumePattern[i] = 5; // Dim brightness for the bar
+            }
+            volumePattern[x] = 15; // Highlight current position
+            gridController.value.drawRowPattern(2, volumePattern);
+          }
+
+          updateSynthParam(clientId, "volume", volume);
+          console.log(
+            `Grid: Set client ${clientId} volume to ${
+              Math.round(volume * 100)
+            }%`,
+          );
+          break;
+
+        case 3: // Row 3: Filter cutoff
+          // Map x position to filter cutoff frequency (left = low, right = high)
+          // Use logarithmic scale for more natural frequency mapping (20Hz to 20,000Hz)
+          const minFreq = Math.log(20);
+          const maxFreq = Math.log(20000);
+          const freqRange = maxFreq - minFreq;
+          const freqValue = Math.exp(minFreq + (x / 15) * freqRange);
+
+          // Visual feedback - show filter cutoff as position
+          showRowFeedback(3);
+
+          if (hasGridController) {
+            const cutoffPattern = Array(16).fill(0);
+            // Create gradient effect
+            for (let i = 0; i <= x; i++) {
+              // Brightness increases with frequency
+              cutoffPattern[i] = Math.ceil((i / 15) * 7); // 0-7 brightness range
+            }
+            cutoffPattern[x] = 15; // Highlight current position
+            gridController.value.drawRowPattern(3, cutoffPattern);
+          }
+
+          updateSynthParam(clientId, "filterCutoff", freqValue);
+          console.log(
+            `Grid: Set client ${clientId} filter cutoff to ${
+              Math.round(freqValue)
+            }Hz`,
+          );
+          break;
+
+        case 4: // Row 4: Filter resonance
+          // Map x position to filter resonance (0-30)
+          const resonance = (x / 15) * 30;
+
+          // Visual feedback
+          showRowFeedback(4);
+
+          if (hasGridController) {
+            const resonancePattern = Array(16).fill(0);
+            // Higher resonance = more LEDs lit
+            resonancePattern[x] = 15; // Highlight current position
+            gridController.value.drawRowPattern(4, resonancePattern);
+          }
+
+          updateSynthParam(clientId, "filterResonance", resonance);
+          console.log(
+            `Grid: Set client ${clientId} filter resonance to ${
+              resonance.toFixed(1)
+            }`,
+          );
+          break;
+
+        case 7: // Row 7 (bottom row): Note off controls
+          if (x === 15) { // Bottom-right corner turns off notes
+            // Visual feedback - bottom-right corner lights up
+            if (hasGridController) {
+              gridController.value.setAll(0); // Clear grid
+              gridController.value.setLed(15, 7, 15); // Light up bottom-right
+            }
+
+            updateSynthParam(clientId, "note_off", null);
+            console.log(`Grid: Turned off note for client ${clientId}`);
+          }
+          break;
+      }
+    });
+  };
+
+  // Example function to demonstrate controlling the grid from the WebRTC controller
+  const _sendPatternToGrid = async () => {
+    if (!gridController.value) {
+      console.log("Grid controller not initialized");
+      return;
+    }
+
+    // Clear the grid first
+    await gridController.value.setAll(0);
+
+    // Create a simple diagonal pattern
+    for (let i = 0; i < 8; i++) {
+      // Set a pixel on the diagonal
+      await gridController.value.setLed(i, i, 15);
+
+      // Set a pixel on the opposite diagonal
+      await gridController.value.setLed(15 - i, i, 15);
+
+      // Small delay for animation effect
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    }
   };
 
   return (
     <div class="container controller-panel">
-      <div class="controller-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #e0e0e0;">
+      <div
+        class="controller-header"
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #e0e0e0;"
+      >
         <div>
           <h1 style="margin: 0;">WebRTC Controller</h1>
           <p style="margin: 5px 0 0 0;">Welcome, {user.name}</p>
@@ -2342,25 +2600,157 @@ export default function Controller({ user, clientId, gridPort = 8001 }: Controll
       {/* Monome Grid section at the top */}
       <div style="margin-bottom: 30px; padding: 20px; background-color: #222; border-radius: 8px; text-align: center;">
         <h2 style="margin-top: 0; color: #f0f0f0;">Monome Grid</h2>
-        <p style="margin-bottom: 15px; color: #ccc;">This grid display shows real-time button presses from the physical Monome Grid controller.</p>
+        <p style="margin-bottom: 15px; color: #ccc;">
+          Control synthesis parameters directly with the Monome Grid!
+        </p>
         <div style="display: flex; justify-content: center;">
-          <GridController 
+          <GridController
             host="localhost"
             port={gridPort}
             onGridKey={handleGridKey}
+            onSetupController={handleGridSetup}
             debugMode={false}
           />
         </div>
+
+        {/* Grid parameter map and controls */}
+        <div style="margin-top: 20px; display: flex; justify-content: center; gap: 10px;">
+          <button
+            type="button"
+            style="background-color: #444; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 14px;"
+            onClick={async () => {
+              if (gridController.value) {
+                // Clear grid first
+                await gridController.value.setAll(0);
+
+                // Show mapping template - light up each row with a different pattern
+                // Row 0: Notes
+                const notePattern = [
+                  5,
+                  0,
+                  5,
+                  0,
+                  5,
+                  0,
+                  5,
+                  0,
+                  5,
+                  0,
+                  5,
+                  0,
+                  5,
+                  0,
+                  5,
+                  0,
+                ];
+                await gridController.value.drawRowPattern(0, notePattern);
+
+                // Row 1: Waveforms - four sections
+                const waveformPattern = [
+                  5,
+                  5,
+                  5,
+                  5,
+                  0,
+                  5,
+                  5,
+                  5,
+                  0,
+                  5,
+                  5,
+                  5,
+                  0,
+                  5,
+                  5,
+                  5,
+                ];
+                await gridController.value.drawRowPattern(1, waveformPattern);
+
+                // Row 2: Volume - gradient
+                const volumePattern = Array(16).fill(0).map((_, i) =>
+                  Math.ceil(i / 3)
+                );
+                await gridController.value.drawRowPattern(2, volumePattern);
+
+                // Row 3: Filter cutoff - increasing pattern
+                const cutoffPattern = Array(16).fill(0).map((_, i) =>
+                  i % 3 === 0 ? 5 : 0
+                );
+                await gridController.value.drawRowPattern(3, cutoffPattern);
+
+                // Row 4: Resonance
+                const resonancePattern = [
+                  0,
+                  0,
+                  5,
+                  0,
+                  0,
+                  0,
+                  5,
+                  0,
+                  0,
+                  0,
+                  5,
+                  0,
+                  0,
+                  0,
+                  5,
+                  0,
+                ];
+                await gridController.value.drawRowPattern(4, resonancePattern);
+
+                // Row 7: Note off control
+                await gridController.value.setLed(15, 7, 8); // Note off button
+              }
+            }}
+          >
+            Show Parameter Map
+          </button>
+
+          <button
+            type="button"
+            style="background-color: #444; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 14px;"
+            onClick={async () => {
+              if (gridController.value) {
+                await gridController.value.setAll(0);
+              }
+            }}
+          >
+            Clear Grid
+          </button>
+        </div>
+
+        {/* Grid parameter description */}
+        <div style="margin-top: 15px; background-color: #333; padding: 10px; border-radius: 4px; color: #ddd; text-align: left; font-size: 14px;">
+          <strong>Grid Parameter Mapping:</strong>
+          <ul style="list-style-type: none; padding-left: 0; margin: 10px 0;">
+            <li>• Row 0: Notes (C3-D5)</li>
+            <li>
+              • Row 1: Waveform Selection (sine, square, sawtooth, triangle)
+            </li>
+            <li>• Row 2: Volume (0-100%)</li>
+            <li>• Row 3: Filter Cutoff (20Hz-20kHz)</li>
+            <li>• Row 4: Filter Resonance (0-30)</li>
+            <li>• Bottom-Right: Note Off</li>
+          </ul>
+        </div>
+
         {gridLastKeyEvent.value && (
           <div style="margin-top: 10px; font-family: monospace; background-color: #333; padding: 5px 10px; border-radius: 4px; color: #ddd; display: inline-block;">
-            Last key: x={gridLastKeyEvent.value.x}, y={gridLastKeyEvent.value.y}, s={gridLastKeyEvent.value.s}
+            Last key: x={gridLastKeyEvent.value.x}, y={gridLastKeyEvent.value
+              .y}, s={gridLastKeyEvent.value.s}
           </div>
         )}
       </div>
 
       <div class="controller-active">
         <h2 style="margin-top: 0;">WebRTC Connections</h2>
-        <div class="connection-status status-active" style="margin-bottom: 15px;">WebRTC Status: Ready</div>
+        <div
+          class="connection-status status-active"
+          style="margin-bottom: 15px;"
+        >
+          WebRTC Status: Ready
+        </div>
 
         {/* Add client form */}
         <div class="add-client-form">
@@ -2378,6 +2768,7 @@ export default function Controller({ user, clientId, gridPort = 8001 }: Controll
               }}
             />
             <button
+              type="button"
               onClick={() => addClient(newClientId.value)}
               disabled={!newClientId.value.trim()}
             >
@@ -2504,6 +2895,7 @@ export default function Controller({ user, clientId, gridPort = 8001 }: Controll
                           !connections.value.get(client.id)?.connected
                         ? (
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               // Use async/await pattern to handle the promise
@@ -2524,6 +2916,7 @@ export default function Controller({ user, clientId, gridPort = 8001 }: Controll
                         )
                         : (
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               disconnect(client.id);
@@ -2556,6 +2949,7 @@ export default function Controller({ user, clientId, gridPort = 8001 }: Controll
               disabled={!connections.value.size}
             />
             <button
+              type="button"
               onClick={sendMessage}
               disabled={!connections.value.size || !message.value.trim()}
             >

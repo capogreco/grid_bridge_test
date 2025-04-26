@@ -96,9 +96,9 @@ export default function ControllerDevPage() {
         </ul>
       </div>
 
-      <Controller 
-        user={mockUser} 
-        clientId={clientId.value} 
+      <Controller
+        user={mockUser}
+        clientId={clientId.value}
         gridPort={8001}
       />
     </div>

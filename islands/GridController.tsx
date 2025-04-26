@@ -1,5 +1,5 @@
 import { useSignal } from "@preact/signals";
-import { useEffect } from "preact/hooks";
+import { useEffect, useRef } from "preact/hooks";
 import { createGridBridgeClient } from "../lib/grid/GridBridgeClient.ts";
 
 interface GridControllerProps {
@@ -36,6 +36,89 @@ export default function GridController({
   onConnectionStatus,
   debugMode = false,
 }: GridControllerProps) {
+  // Create a reference to the component itself (for external access to public methods)
+  const componentRef = useRef({
+    // Method to highlight a specific row on the grid
+    highlightRow: async (row: number, brightness: number = 5) => {
+      if (!gridBridge.value || !isConnected.value) return;
+
+      // Create a pattern with the specified row lit
+      const newGridState = [...gridState.value];
+
+      // Clear existing content first
+      for (let i = 0; i < newGridState.length; i++) {
+        if (Math.floor(i / 16) === row) {
+          newGridState[i] = brightness;
+        }
+      }
+
+      // Update the grid
+      gridState.value = newGridState;
+
+      // Send to the physical grid
+      const data = Array(8).fill([]).map((_, y) => {
+        return Array(16).fill(0).map((_, x) => {
+          return y === row ? brightness : 0;
+        });
+      });
+
+      await gridBridge.value.map(0, 0, data);
+    },
+
+    // Method to indicate the active parameter value on a row
+    setParameterValue: async (
+      row: number,
+      column: number,
+      brightness: number = 15,
+    ) => {
+      if (!gridBridge.value || !isConnected.value) return;
+
+      // Create a pattern with just that single LED lit on the row
+      const rowOffset = row * 16;
+      const newGridState = [...gridState.value];
+
+      // First clear this row
+      for (let i = 0; i < 16; i++) {
+        newGridState[rowOffset + i] = 0;
+      }
+
+      // Then set the active parameter LED
+      newGridState[rowOffset + column] = brightness;
+
+      // Update local state
+      gridState.value = newGridState;
+
+      // Update physical grid
+      await gridBridge.value.all(0); // Clear first
+
+      // Set the LED for this parameter
+      await gridBridge.value.set(column, row, brightness);
+    },
+
+    // Draw a sequence on a row (for example, to show a series of active notes)
+    drawRowPattern: async (row: number, pattern: number[]) => {
+      if (!gridBridge.value || !isConnected.value || pattern.length !== 16) {
+        return;
+      }
+
+      // Update the grid state for this row
+      const rowOffset = row * 16;
+      const newGridState = [...gridState.value];
+
+      // Set each cell in the row according to the pattern
+      for (let i = 0; i < 16; i++) {
+        newGridState[rowOffset + i] = pattern[i];
+      }
+
+      // Update local state
+      gridState.value = newGridState;
+
+      // Update physical grid for this row
+      for (let i = 0; i < 16; i++) {
+        await gridBridge.value.set(i, row, pattern[i]);
+      }
+    },
+  });
   // Store port for UI display
   const serverPort = port;
   // Grid state tracking
@@ -110,11 +193,11 @@ export default function GridController({
       console.log("Connected to Grid bridge");
       isConnected.value = true;
       connectionError.value = null;
-      
+
       // Update connection info
       const connInfo = `Connected to ${bridge.getServerUrl()}`;
       connectionInfo.value = connInfo;
-      
+
       // Call parent callback if provided
       if (onConnectionStatus) {
         onConnectionStatus(true, connInfo);
@@ -131,11 +214,11 @@ export default function GridController({
     bridge.onDisconnect(() => {
       console.log("Disconnected from Grid bridge");
       isConnected.value = false;
-      
+
       // Update connection info
       const connInfo = `Disconnected from ${bridge.getServerUrl()}`;
       connectionInfo.value = connInfo;
-      
+
       // Call parent callback if provided
       if (onConnectionStatus) {
         onConnectionStatus(false, connInfo);
@@ -152,11 +235,11 @@ export default function GridController({
     bridge.onError((message) => {
       console.error("Grid bridge error:", message);
       connectionError.value = message;
-      
+
       // Update connection info
       const connInfo = `Error: ${message}`;
       connectionInfo.value = connInfo;
-      
+
       // Call parent callback if provided
       if (onConnectionStatus) {
         onConnectionStatus(false, connInfo);
@@ -217,7 +300,7 @@ export default function GridController({
     // Display connection info
     const initialConnInfo = `Connecting to ${bridge.getServerUrl()}`;
     connectionInfo.value = initialConnInfo;
-    
+
     // Call parent callback with initial status
     if (onConnectionStatus) {
       onConnectionStatus(false, initialConnInfo);
@@ -315,6 +398,13 @@ export default function GridController({
           y_offset: number,
           data: number[][],
         ) => Promise<boolean>;
+        highlightRow: (row: number, brightness?: number) => Promise<void>;
+        setParameterValue: (
+          row: number,
+          column: number,
+          brightness?: number,
+        ) => Promise<void>;
+        drawRowPattern: (row: number, pattern: number[]) => Promise<void>;
       } = {
         setLed: (x: number, y: number, s: number) => {
           // Update local state for visual display
@@ -354,6 +444,11 @@ export default function GridController({
           // Send to grid
           return bridge.map(x_offset, y_offset, data);
         },
+
+        // Expose the new methods from componentRef
+        highlightRow: componentRef.current.highlightRow,
+        setParameterValue: componentRef.current.setParameterValue,
+        drawRowPattern: componentRef.current.drawRowPattern,
       };
 
       onSetupController?.(controller);
@@ -410,7 +505,10 @@ export default function GridController({
       )}
 
       {connectionError.value && (
-        <div class="connection-error" style="margin-bottom: 15px; max-height: 150px;">
+        <div
+          class="connection-error"
+          style="margin-bottom: 15px; max-height: 150px;"
+        >
           <div class="error-message">{connectionError.value}</div>
           <div class="error-help">
             <strong>Check if:</strong>
@@ -422,8 +520,61 @@ export default function GridController({
         </div>
       )}
 
+      {/* Grid controls */}
+      <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 10px;">
+        <button
+          type="button"
+          class="grid-control-button"
+          style="background-color: #444; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 14px; min-width: 100px;"
+          onClick={async () => {
+            if (gridBridge.value && isConnected.value) {
+              await gridBridge.value.all(0);
+              // Update local grid state
+              gridState.value = Array(16 * 8).fill(0);
+            }
+          }}
+          disabled={!isConnected.value}
+        >
+          Clear Grid
+        </button>
+
+        <button
+          type="button"
+          class="grid-control-button"
+          style="background-color: #444; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 14px; min-width: 100px;"
+          onClick={async () => {
+            if (gridBridge.value && isConnected.value) {
+              // First clear the grid
+              await gridBridge.value.all(0);
+              gridState.value = Array(16 * 8).fill(0);
+
+              // Create a checkerboard pattern
+              const newGridState = [...gridState.value];
+              for (let y = 0; y < 8; y++) {
+                for (let x = 0; x < 16; x++) {
+                  if ((x + y) % 2 === 0) {
+                    const index = y * 16 + x;
+                    await gridBridge.value.set(x, y, 15);
+                    newGridState[index] = 15;
+                    // Update state incrementally for visual effect
+                    gridState.value = [...newGridState];
+                    await new Promise((resolve) => setTimeout(resolve, 10));
+                  }
+                }
+              }
+            }
+          }}
+          disabled={!isConnected.value}
+        >
+          Test Pattern
+        </button>
+      </div>
+
       {/* Visual grid representation */}
-      <div class="grid-display" style="border: 1px solid #666; padding: 5px; border-radius: 4px; background-color: #333;">
+      <div
+        class="grid-display"
+        style="border: 1px solid #666; padding: 5px; border-radius: 4px; background-color: #333;"
+      >
         {Array.from({ length: 8 }).map((_, y) => (
           <div class="grid-row" key={y}>
             {Array.from({ length: 16 }).map((_, x) => {
@@ -439,12 +590,28 @@ export default function GridController({
                     backgroundColor: brightness > 0
                       ? `rgb(255, ${255 - brightness * 16}, 0)`
                       : "#444",
-                    width: "26px", 
+                    width: "26px",
                     height: "26px",
                     margin: "1px",
                     borderRadius: "3px",
+                    cursor: isConnected.value ? "pointer" : "default",
                   }}
-                  title={`x: ${x}, y: ${y}, brightness: ${brightness}`}
+                  onClick={async () => {
+                    // Only allow interaction when connected
+                    if (!isConnected.value || !gridBridge.value) return;
+
+                    // Toggle the LED state
+                    const newBrightness = brightness > 0 ? 0 : 15;
+                    await gridBridge.value.set(x, y, newBrightness);
+
+                    // Update local state - create a new array to trigger reactivity
+                    const newGridState = [...gridState.value];
+                    newGridState[index] = newBrightness;
+                    gridState.value = newGridState;
+                  }}
+                  title={`x: ${x}, y: ${y}, brightness: ${brightness}${
+                    isConnected.value ? " (click to toggle)" : ""
+                  }`}
                 />
               );
             })}
