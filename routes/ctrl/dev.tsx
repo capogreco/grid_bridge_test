@@ -81,21 +81,6 @@ export default function ControllerDevPage() {
         <strong>Development Mode</strong> - OAuth authentication bypassed
       </div>
 
-      <div class="integration-notes" style="margin-bottom: 20px;">
-        <h3>Integration Notes</h3>
-        <ul>
-          <li>
-            The Swift app establishes a WebSocket server on localhost:8001
-          </li>
-          <li>The browser controller connects as a client to the server</li>
-          <li>Grid button presses are sent from Swift to the browser</li>
-          <li>LED updates are sent from the browser to Swift</li>
-          <li>
-            The grid controller maps physical inputs to synthesis parameters
-          </li>
-        </ul>
-      </div>
-
       <Controller
         user={mockUser}
         clientId={clientId.value}
