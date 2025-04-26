@@ -16,6 +16,7 @@ import {
   validateWaveform,
 } from "../lib/synth/index.ts";
 import { formatTime } from "../lib/utils/formatTime.ts";
+import GridController from "./GridController.tsx";
 
 // No controller registration API in stateless approach
 // In stateless signaling, controllers are just peers that can connect to other peers
@@ -29,6 +30,7 @@ interface ControllerProps {
     id: string;
   };
   clientId: string; // Unique client ID for this controller instance
+  gridPort?: number; // Optional port for the Grid bridge, defaults to 8001
 }
 
 // SynthControls component for displaying controls per client
@@ -617,7 +619,7 @@ function SynthControls(
   );
 }
 
-export default function Controller({ user, clientId }: ControllerProps) {
+export default function Controller({ user, clientId, gridPort = 8001 }: ControllerProps) {
   // Use the server-provided client ID
   const id = useSignal(clientId);
   // Changed from array to Map for O(1) lookups by client ID
@@ -2304,29 +2306,61 @@ export default function Controller({ user, clientId }: ControllerProps) {
     };
   }, []);
 
+  // Track last grid key event for display
+  const gridLastKeyEvent = useSignal<{ x: number; y: number; s: number } | null>(null);
+
+  // Handle grid key events
+  const handleGridKey = (x: number, y: number, s: number) => {
+    console.log(`Grid key press: x=${x}, y=${y}, s=${s}`);
+    gridLastKeyEvent.value = { x, y, s };
+    // Later this will be connected to synthesis parameters
+  };
+
   return (
     <div class="container controller-panel">
-      <h1>WebRTC Controller</h1>
-      <p>Welcome, {user.name}</p>
+      <div class="controller-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #e0e0e0;">
+        <div>
+          <h1 style="margin: 0;">WebRTC Controller</h1>
+          <p style="margin: 5px 0 0 0;">Welcome, {user.name}</p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 15px;">
+          <span class="controller-id">ID: {id.value}</span>
+          <span
+            class={`wake-lock-status ${
+              wakeLock.value ? "wake-lock-active" : "wake-lock-inactive"
+            }`}
+            title={wakeLock.value
+              ? "Screen will stay awake"
+              : "Screen may sleep (no wake lock)"}
+          >
+            {wakeLock.value ? "🔆" : "💤"}
+          </span>
+          <a href="/ctrl/logout" class="logout-link">Logout</a>
+        </div>
+      </div>
+
+      {/* Monome Grid section at the top */}
+      <div style="margin-bottom: 30px; padding: 20px; background-color: #222; border-radius: 8px; text-align: center;">
+        <h2 style="margin-top: 0; color: #f0f0f0;">Monome Grid</h2>
+        <p style="margin-bottom: 15px; color: #ccc;">This grid display shows real-time button presses from the physical Monome Grid controller.</p>
+        <div style="display: flex; justify-content: center;">
+          <GridController 
+            host="localhost"
+            port={gridPort}
+            onGridKey={handleGridKey}
+            debugMode={false}
+          />
+        </div>
+        {gridLastKeyEvent.value && (
+          <div style="margin-top: 10px; font-family: monospace; background-color: #333; padding: 5px 10px; border-radius: 4px; color: #ddd; display: inline-block;">
+            Last key: x={gridLastKeyEvent.value.x}, y={gridLastKeyEvent.value.y}, s={gridLastKeyEvent.value.s}
+          </div>
+        )}
+      </div>
 
       <div class="controller-active">
-        <div class="controller-header">
-          <div>
-            <span class="controller-id">Controller ID: {id.value}</span>
-            <span class="connection-status status-active">Ready</span>
-            <span
-              class={`wake-lock-status ${
-                wakeLock.value ? "wake-lock-active" : "wake-lock-inactive"
-              }`}
-              title={wakeLock.value
-                ? "Screen will stay awake"
-                : "Screen may sleep (no wake lock)"}
-            >
-              {wakeLock.value ? "🔆 Wake Lock" : "💤 No Wake Lock"}
-            </span>
-            <a href="/ctrl/logout" class="logout-link">Logout</a>
-          </div>
-        </div>
+        <h2 style="margin-top: 0;">WebRTC Connections</h2>
+        <div class="connection-status status-active" style="margin-bottom: 15px;">WebRTC Status: Ready</div>
 
         {/* Add client form */}
         <div class="add-client-form">

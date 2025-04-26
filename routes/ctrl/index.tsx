@@ -428,5 +428,5 @@ export default function ControllerPage({ data }: PageProps) {
     );
   }
 
-  return <Controller user={user} clientId={clientId} />;
+  return <Controller user={user} clientId={clientId} gridPort={8001} />;
 }

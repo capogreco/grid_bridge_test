@@ -1,0 +1,279 @@
+/* Grid Controller Styles */
+
+.grid-controller {
+  margin: 20px 0;
+  background: #f5f5f5;
+  border-radius: 8px;
+  padding: 15px;
+}
+
+.grid-status {
+  margin-bottom: 15px;
+}
+
+.grid-status h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.connection-status {
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  font-weight: bold;
+}
+
+.connection-status.connected {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.connection-status.disconnected {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.connection-info {
+  margin-bottom: 10px;
+  padding: 8px;
+  background-color: #e9ecef;
+  border-radius: 4px;
+  color: #495057;
+  font-family: monospace;
+}
+
+.connection-error {
+  margin-bottom: 10px;
+  padding: 12px;
+  background-color: #f8d7da;
+  border-radius: 4px;
+  color: #721c24;
+  font-family: system-ui, -apple-system, sans-serif;
+  white-space: pre-wrap;
+  max-height: 250px;
+  overflow-y: auto;
+  border: 1px solid #f5c6cb;
+}
+
+.error-header {
+  font-weight: bold;
+  margin-bottom: 8px;
+  border-bottom: 1px solid rgba(114, 28, 36, 0.3);
+  padding-bottom: 5px;
+  font-size: 16px;
+}
+
+.error-message {
+  font-family: monospace;
+  margin-bottom: 12px;
+  padding: 8px;
+  background-color: rgba(255, 255, 255, 0.5);
+  border-radius: 3px;
+}
+
+.error-help {
+  font-size: 14px;
+  background-color: rgba(255, 255, 255, 0.7);
+  padding: 8px;
+  border-radius: 3px;
+  margin-top: 10px;
+}
+
+.error-help ol {
+  margin-top: 5px;
+  margin-bottom: 0;
+  padding-left: 25px;
+}
+
+.error-help li {
+  margin-bottom: 4px;
+}
+
+.setup-instructions {
+  margin: 15px 0;
+  padding: 15px;
+  background-color: #e2f4ff;
+  border-radius: 4px;
+  color: #0c5460;
+  border: 1px solid #bee5eb;
+}
+
+.setup-instructions h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 16px;
+  border-bottom: 1px solid rgba(12, 84, 96, 0.3);
+  padding-bottom: 5px;
+}
+
+.setup-instructions p {
+  margin-bottom: 10px;
+}
+
+.setup-instructions ol {
+  margin-top: 5px;
+  margin-bottom: 5px;
+  padding-left: 25px;
+}
+
+.setup-instructions li {
+  margin-bottom: 5px;
+}
+
+.connection-toggle {
+  margin-bottom: 10px;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  border: none;
+  transition: background-color 0.2s;
+}
+
+.connection-toggle.connect {
+  background-color: #28a745;
+  color: white;
+}
+
+.connection-toggle.disconnect {
+  background-color: #dc3545;
+  color: white;
+}
+
+.connection-toggle.connect:hover {
+  background-color: #218838;
+}
+
+.connection-toggle.disconnect:hover {
+  background-color: #c82333;
+}
+
+.last-key-event {
+  margin-top: 10px;
+  font-family: monospace;
+  background-color: #e2e3e5;
+  padding: 5px 10px;
+  border-radius: 4px;
+  color: #383d41;
+}
+
+.controls-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.debug-toggle {
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.debug-toggle:hover {
+  background-color: #5a6268;
+}
+
+.debug-logs, .raw-messages, .memory-stats {
+  margin-top: 15px;
+  background-color: #343a40;
+  color: #f8f9fa;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.debug-logs h4, .raw-messages h4, .memory-stats h4 {
+  margin: 0;
+  padding: 10px;
+  background-color: #212529;
+  color: #f8f9fa;
+}
+
+.logs-container {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 10px;
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.log-entry, .message-entry {
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.log-entry:last-child, .message-entry:last-child {
+  border-bottom: none;
+}
+
+.message-entry.incoming {
+  color: #8ff0a4;
+}
+
+.message-entry.outgoing {
+  color: #f8c6bd;
+}
+
+.empty-logs {
+  padding: 10px;
+  color: #adb5bd;
+  font-style: italic;
+}
+
+.memory-stats {
+  padding: 10px;
+}
+
+.debug-controls {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.grid-display {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 15px;
+}
+
+.grid-row {
+  display: flex;
+  gap: 2px;
+}
+
+.grid-cell {
+  width: 24px;
+  height: 24px;
+  background-color: #ddd;
+  border-radius: 3px;
+  transition: background-color 0.1s ease;
+}
+
+.grid-cell.active {
+  background-color: rgb(255, 204, 0);
+  box-shadow: 0 0 5px rgba(255, 204, 0, 0.5);
+}
+
+/* Make the grid responsive */
+@media (max-width: 500px) {
+  .grid-cell {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* For very small screens */
+@media (max-width: 400px) {
+  .grid-cell {
+    width: 14px;
+    height: 14px;
+  }
+}

@@ -16,6 +16,7 @@ import * as $ctrl_logout from "./routes/ctrl/logout.tsx";
 import * as $greet_name_ from "./routes/greet/[name].tsx";
 import * as $index from "./routes/index.tsx";
 import * as $Controller from "./islands/Controller.tsx";
+import * as $GridController from "./islands/GridController.tsx";
 import * as $KickControllerButton from "./islands/KickControllerButton.tsx";
 import * as $WebRTC from "./islands/WebRTC.tsx";
 import type { Manifest } from "$fresh/server.ts";
@@ -38,6 +39,7 @@ const manifest = {
   },
   islands: {
     "./islands/Controller.tsx": $Controller,
+    "./islands/GridController.tsx": $GridController,
     "./islands/KickControllerButton.tsx": $KickControllerButton,
     "./islands/WebRTC.tsx": $WebRTC,
   },
