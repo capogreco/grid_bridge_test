@@ -2720,21 +2720,6 @@ export default function Controller(
           </button>
         </div>
 
-        {/* Grid parameter description */}
-        <div style="margin-top: 15px; background-color: #333; padding: 10px; border-radius: 4px; color: #ddd; text-align: left; font-size: 14px;">
-          <strong>Grid Parameter Mapping:</strong>
-          <ul style="list-style-type: none; padding-left: 0; margin: 10px 0;">
-            <li>• Row 0: Notes (C3-D5)</li>
-            <li>
-              • Row 1: Waveform Selection (sine, square, sawtooth, triangle)
-            </li>
-            <li>• Row 2: Volume (0-100%)</li>
-            <li>• Row 3: Filter Cutoff (20Hz-20kHz)</li>
-            <li>• Row 4: Filter Resonance (0-30)</li>
-            <li>• Bottom-Right: Note Off</li>
-          </ul>
-        </div>
-
         {gridLastKeyEvent.value && (
           <div style="margin-top: 10px; font-family: monospace; background-color: #333; padding: 5px 10px; border-radius: 4px; color: #ddd; display: inline-block;">
             Last key: x={gridLastKeyEvent.value.x}, y={gridLastKeyEvent.value
